@@ -1,0 +1,10 @@
+{
+    "Parameters": {
+      "RuleName": "AWSConfigRuleKMS",
+      "SourceRuntime": "python3.6",
+      "CodeKey": "AWSConfigRuleKMS.zip",
+      "InputParameters": "{\"CMK_Whitelist\" : \"Otter*\", \"Admin_User_Id\" : \"AROAOTTER*\"}",
+      "SourceEvents": "AWS::KMS::Key",
+      "SourcePeriodic": "TwentyFour_Hours"
+    }
+  }
