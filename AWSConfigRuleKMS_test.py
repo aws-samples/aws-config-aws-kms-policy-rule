@@ -36,6 +36,143 @@ sys.modules["boto3"] = Boto3Mock()
 
 import AWSConfigRuleKMS as rule
 
+def createRuleParameters(ruleParams):
+    return json.dumps(ruleParams)
+
+def build_lambda_configurationchange_event(invoking_event, rule_parameters=None):
+    event_to_return = {
+        'configRuleName': 'myrule',
+        'executionRoleArn': 'roleArn',
+        'eventLeftScope': False,
+        'invokingEvent': invoking_event,
+        'accountId': '123456789012',
+        'configRuleArn': 'arn:aws:config:us-east-1:123456789012:config-rule/config-rule-8fngan',
+        'resultToken': 'token',
+    }
+    if rule_parameters:
+        event_to_return['ruleParameters'] = rule_parameters
+    return event_to_return
+
+
+def build_lambda_scheduled_event(rule_parameters=None):
+    invoking_event = '{"messageType":"ScheduledNotification","notificationCreationTime":"2017-12-23T22:11:18.158Z"}'
+    event_to_return = {
+        'configRuleName': 'myrule',
+        'executionRoleArn': 'roleArn',
+        'eventLeftScope': False,
+        'invokingEvent': invoking_event,
+        'accountId': '123456789012',
+        'configRuleArn': 'arn:aws:config:us-east-1:123456789012:config-rule/config-rule-8fngan',
+        'resultToken': 'token',
+    }
+    if rule_parameters:
+        event_to_return['ruleParameters'] = rule_parameters
+    return event_to_return
+
+
+def assert_successful_evaluation(
+    test_class, response, resp_expected, evaluations_count=1
+):
+    if isinstance(response, dict):
+        test_class.assertEquals(
+            resp_expected['ComplianceResourceType'], response['ComplianceResourceType']
+        )
+        test_class.assertEquals(
+            resp_expected['ComplianceResourceId'], response['ComplianceResourceId']
+        )
+        test_class.assertEquals(
+            resp_expected['ComplianceType'], response['ComplianceType']
+        )
+        test_class.assertTrue(response['OrderingTimestamp'])
+        if 'Annotation' in resp_expected or 'Annotation' in response:
+            test_class.assertEquals(resp_expected['Annotation'], response['Annotation'])
+    elif isinstance(response, list):
+        test_class.assertEquals(evaluations_count, len(response))
+        for i, response_expected in enumerate(resp_expected):
+            test_class.assertEquals(
+                response_expected['ComplianceResourceType'],
+                response[i]['ComplianceResourceType'],
+            )
+            test_class.assertEquals(
+                response_expected['ComplianceResourceId'],
+                response[i]['ComplianceResourceId'],
+            )
+            test_class.assertEquals(
+                response_expected['ComplianceType'], response[i]['ComplianceType']
+            )
+            test_class.assertTrue(response[i]['OrderingTimestamp'])
+            if 'Annotation' in response_expected or 'Annotation' in response[i]:
+                test_class.assertEquals(
+                    response_expected['Annotation'], response[i]['Annotation']
+                )
+
+
+def build_expected_response(
+    compliance_type,
+    compliance_resource_id,
+    compliance_resource_type=DEFAULT_RESOURCE_TYPE,
+    annotation=None,
+):
+    if not annotation:
+        return {
+            'ComplianceType': compliance_type,
+            'ComplianceResourceId': compliance_resource_id,
+            'ComplianceResourceType': compliance_resource_type,
+        }
+    return {
+        'ComplianceType': compliance_type,
+        'ComplianceResourceId': compliance_resource_id,
+        'ComplianceResourceType': compliance_resource_type,
+        'Annotation': annotation,
+    }
+
+
+def build_policy_doc(actions, userid=[], resource='*', has_condition=True):
+    if has_condition:
+        condition = {'StringLike': {'aws:userId': userid}}
+    else:
+        condition = {}
+    doc = {
+        "Version": "2012-10-17",
+        "Id": "auto-test-generated",
+        "Statement": [
+            {
+                "Sid": "Test policy for mock",
+                "Effect": "Allow",
+                "Principal": {"AWS": "*"},
+                "Action": actions,
+                "Resource": resource,
+                "Condition": condition,
+            }
+        ],
+    }
+    return json.dumps(doc)
+
+
+def build_policy_response(policy_doc='{}'):
+    return {
+        "Policy": policy_doc,
+        "ResponseMetadata": {
+            "RequestId": "f145eca8-a250-40c5-8789-3840c75714db",
+            "HTTPStatusCode": 200,
+        },
+    }
+
+
+def assert_customer_error_response(
+    testClass, response, customerErrorCode=None, customerErrorMessage=None
+):
+    if customerErrorCode:
+        testClass.assertEqual(customerErrorCode, response["customerErrorCode"])
+    if customerErrorMessage:
+        testClass.assertEqual(customerErrorMessage, response["customerErrorMessage"])
+    testClass.assertTrue(response["customerErrorCode"])
+    testClass.assertTrue(response["customerErrorMessage"])
+    if "internalErrorMessage" in response:
+        testClass.assertTrue(response["internalErrorMessage"])
+    if "internalErrorDetails" in response:
+        testClass.assertTrue(response["internalErrorDetails"])
+
 class TestKMSKeyPolicy(unittest.TestCase):
     list_aliases = {
         "Aliases": [
